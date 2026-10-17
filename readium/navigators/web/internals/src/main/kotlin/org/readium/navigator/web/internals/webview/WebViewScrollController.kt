@@ -118,19 +118,26 @@ public class WebViewScrollController(
         )
 
         if (snap) {
-            snap(orientation)
+            snap(orientation, direction)
         }
     }
 
-    public fun snap(orientation: Orientation) {
+    public fun snap(orientation: Orientation, direction: LayoutDirection = LayoutDirection.Ltr) {
         when (orientation) {
             Orientation.Vertical -> {
                 val offset = webView.scrollY % webView.height
                 webView.scrollBy(0, -offset)
             }
-            Orientation.Horizontal -> {
-                val offset = webView.scrollX % webView.width
-                webView.scrollBy(-offset, 0)
+            Orientation.Horizontal -> when (direction) {
+                LayoutDirection.Ltr -> {
+                    val offset = webView.scrollX % webView.width
+                    webView.scrollBy(-offset, 0)
+                }
+                LayoutDirection.Rtl -> {
+                    // In RTL, pages are aligned on the right edge of the document.
+                    val offset = webView.rtlScrollDistance % webView.width
+                    webView.scrollBy(offset, 0)
+                }
             }
         }
     }
@@ -200,10 +207,15 @@ private fun RelaxedWebView.scrollToProgression(
         }
         Orientation.Horizontal -> when (direction) {
             LayoutDirection.Ltr -> {
-                scrollTo(ceil(progression * docWidth).roundToInt(), scrollY)
+                val x = ceil(progression * docWidth).roundToInt()
+                scrollTo(x.coerceIn(0, maxScrollX.coerceAtLeast(0)), scrollY)
             }
             LayoutDirection.Rtl -> {
-                scrollTo((ceil((1 - progression) * docWidth)).roundToInt(), scrollY)
+                // The WebView always scrolls from the left edge: in RTL, progression 0 is at
+                // maxScrollX and the visible page starts on its right side.
+                val distanceFromRight = ceil(progression * docWidth).roundToInt()
+                val x = maxScrollX - distanceFromRight
+                scrollTo(x.coerceIn(0, maxScrollX.coerceAtLeast(0)), scrollY)
             }
         }
     }
@@ -231,9 +243,9 @@ private fun RelaxedWebView.startProgression(
     Orientation.Vertical -> scrollY / (maxScrollY + height).toDouble()
     Orientation.Horizontal -> when (direction) {
         LayoutDirection.Ltr -> scrollX / (maxScrollX + width).toDouble()
-        LayoutDirection.Rtl -> 1 - scrollX / (maxScrollX + width).toDouble()
+        LayoutDirection.Rtl -> rtlScrollDistance / (maxScrollX + width).toDouble()
     }
-}
+}.coerceIn(0.0, 1.0)
 
 private fun RelaxedWebView.endProgression(
     orientation: Orientation,
@@ -243,10 +255,18 @@ private fun RelaxedWebView.endProgression(
         Orientation.Vertical -> (scrollY + height) / (maxScrollY + height).toDouble()
         Orientation.Horizontal -> when (direction) {
             LayoutDirection.Ltr -> (scrollX + width) / (maxScrollX + width).toDouble()
-            LayoutDirection.Rtl -> 1 - (scrollX + width) / (maxScrollX + width).toDouble()
+            LayoutDirection.Rtl -> (rtlScrollDistance + width) / (maxScrollX + width).toDouble()
         }
-    }
+    }.coerceIn(0.0, 1.0)
 }
+
+/**
+ * Distance between the right edge of the viewport and the right edge of the document,
+ * which is where RTL content starts. scrollX can briefly be out of [0, maxScrollX].
+ */
+private val RelaxedWebView.rtlScrollDistance: Int get() =
+    (maxScrollX - scrollX).coerceIn(0, maxScrollX.coerceAtLeast(0))
+
 
 private fun RelaxedWebView.scrollBy(delta: Offset): Offset {
     val coercedX =
