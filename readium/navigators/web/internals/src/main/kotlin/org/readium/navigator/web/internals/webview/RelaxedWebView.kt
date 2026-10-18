@@ -72,6 +72,20 @@ public class RelaxedWebView(context: Context) : WebView(context) {
 
     private var hasActionMode: Boolean = false
 
+    // Horizontal position when the selection started: the page must not move while its handles are dragged.
+    private var selectionScrollX: Int? = null
+
+    override fun onScrollChanged(l: Int, t: Int, oldl: Int, oldt: Int) {
+        super.onScrollChanged(l, t, oldl, oldt)
+        // In right-to-left paginated books, the WebView scrolls the page horizontally while a handle is
+        // dragged (the onOverScrolled workaround above does not catch it), so the selection runs over
+        // the whole page. Put the page back where the selection started.
+        val lockedX = selectionScrollX
+        if (hasActionMode && lockedX != null && l != lockedX) {
+            scrollTo(lockedX, t)
+        }
+    }
+
     override fun onOverScrolled(scrollX: Int, scrollY: Int, clampedX: Boolean, clampedY: Boolean) {
         // Workaround addressing a bug in the Android WebView where the viewport is scrolled while
         // dragging the text selection handles.
@@ -90,8 +104,14 @@ public class RelaxedWebView(context: Context) : WebView(context) {
     override fun startActionMode(callback: ActionMode.Callback, type: Int): ActionMode? {
         val decoratedCallback = CallbackDecorator(
             callback = actionModeCallback ?: callback,
-            onCreateActionModeCallback = { hasActionMode = true },
-            onDestroyActionModeCallback = { hasActionMode = false }
+            onCreateActionModeCallback = {
+                hasActionMode = true
+                selectionScrollX = scrollX
+            },
+            onDestroyActionModeCallback = {
+                hasActionMode = false
+                selectionScrollX = null
+            }
         )
 
         val wrapper = Callback2Wrapper(
