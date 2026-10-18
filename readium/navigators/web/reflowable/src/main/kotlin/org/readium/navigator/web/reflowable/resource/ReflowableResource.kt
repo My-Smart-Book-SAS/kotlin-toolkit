@@ -331,7 +331,11 @@ internal fun ReflowableResource(
                         onTapDelegate = { offset ->
                             // There's an on-going selection, the tap will dismiss it so we don't forward it.
                             if (isSelecting) {
-                                Timber.d("resource ${resourceState.index} tap $offset ignored: selection on-going")
+                                // In right-to-left paginated books, the WebView does not always dismiss the
+                                // selection on tap, so isSelecting would stay true and every tap be dropped.
+                                Timber.d("resource ${resourceState.index} tap $offset clears the selection")
+                                isSelecting = false
+                                selectionApi?.clearSelection()
                                 return@DelegatingGesturesListener
                             }
                             Timber.d(
