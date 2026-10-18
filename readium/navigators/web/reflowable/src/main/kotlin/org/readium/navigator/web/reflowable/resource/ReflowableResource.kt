@@ -317,16 +317,27 @@ internal fun ReflowableResource(
                 selectionListenerApi?.let { selectionListenerApi ->
                     var isSelecting = false
                     selectionListenerApi.listener = DelegatingSelectionListener(
-                        onSelectionStartDelegate = { isSelecting = true },
-                        onSelectionEndDelegate = { isSelecting = false }
+                        onSelectionStartDelegate = {
+                            Timber.d("resource ${resourceState.index} selection start")
+                            isSelecting = true
+                        },
+                        onSelectionEndDelegate = {
+                            Timber.d("resource ${resourceState.index} selection end")
+                            isSelecting = false
+                        }
                     )
 
                     gesturesApi.listener = DelegatingGesturesListener(
                         onTapDelegate = { offset ->
                             // There's an on-going selection, the tap will dismiss it so we don't forward it.
                             if (isSelecting) {
+                                Timber.d("resource ${resourceState.index} tap $offset ignored: selection on-going")
                                 return@DelegatingGesturesListener
                             }
+                            Timber.d(
+                                "resource ${resourceState.index} tap $offset " +
+                                    "scrollX=${webViewState.webView?.scrollX} maxScrollX=${webViewState.webView?.maxScrollX}"
+                            )
 
                             val shiftedOffset = offset + paddingShift
                             onTap(TapEvent(shiftedOffset))
